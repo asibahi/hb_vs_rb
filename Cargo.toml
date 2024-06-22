@@ -13,7 +13,6 @@ image = { version = "0.25", default-features = false, features = [
     "rayon",
 ] }
 imageproc = "0.25"
-itertools = "0.13"
 rustybuzz = "0.14"
 
 [lints.clippy]

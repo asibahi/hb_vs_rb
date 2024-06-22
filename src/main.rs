@@ -14,8 +14,8 @@ const LINE_HEIGHT: u32 = FACTOR * 160;
 
 const FONT_SIZE: f32 = FACTOR as f32 * 80.0;
 
-const _MSHQ_DEFAULT: f32 = 25.0;
-const _SPAC_DEFAULT: f32 = -80.0;
+const _MSHQ_DEFAULT: f32 = 25.5;
+const _SPAC_DEFAULT: f32 = -10.3;
 macro_rules! my_file {
     () => {
         "kawthar"
@@ -35,33 +35,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut ab_font = ab::FontRef::try_from_slice(&font_data)?;
 
-    let variations = [
-        Variation {
-            tag: *b"MSHQ",
-            current_value: _MSHQ_DEFAULT,
-        },
-        Variation {
-            tag: *b"SPAC",
-            current_value: _SPAC_DEFAULT,
-        },
-    ];
+    for mshq in (0..1000).map(|x| x as f32 / 10.0) {
+        for spac in (-800..1000).map(|x| x as f32 / 10.0) {
+            let variations = [
+                Variation {
+                    tag: *b"MSHQ",
+                    current_value: mshq,
+                },
+                Variation {
+                    tag: *b"SPAC",
+                    current_value: spac,
+                },
+            ];
 
-    let canvas = write_in_image(
-        full_text,
-        &mut ab_font,
-        &mut rb_font,
-        &mut hb_font,
-        variations,
-    );
+            let canvas = write_in_image(
+                full_text,
+                &mut ab_font,
+                &mut rb_font,
+                &mut hb_font,
+                variations,
+            );
 
-    canvas.save(Path::new(
-        &(format!(
-            "texts/rb_vs_hb__{}_MSHQ:{:.0}_SPAC:{:.0}.png",
-            my_file!(),
-            _MSHQ_DEFAULT,
-            _SPAC_DEFAULT
-        )),
-    ))?;
+            canvas.save(Path::new(
+                &(format!(
+                    "texts/rb_vs_hb__{}_MSHQ:{:.0}_SPAC:{:.0}.png",
+                    my_file!(),
+                    mshq * 10.0,
+                    spac * 10.0
+                )),
+            ))?;
+        }
+    }
 
     Ok(())
 }
@@ -72,12 +76,12 @@ pub struct Variation {
     pub current_value: f32,
 }
 
-fn write_in_image(
+fn write_in_image<const N: usize>(
     full_text: &str,
     ab_font: &mut (impl ab::Font + ab::VariableFont),
     rb_font: &mut rb::Face<'_>,
     hb_font: &mut hb::Owned<hb::Font<'_>>,
-    variations: [Variation; 2],
+    variations: [Variation; N],
 ) -> RgbaImage {
     for v in variations {
         ab_font.set_variation(&v.tag, v.current_value);
