@@ -5,20 +5,17 @@ use imageproc::drawing::Canvas as _;
 use rustybuzz as rb;
 use std::{ops::Add, path::Path};
 
-const FACTOR: u32 = 4;
+const FACTOR: u32 = 1;
 
 const MARGIN: u32 = FACTOR * 100;
 
-// const IMG_WIDTH: u32 = FACTOR * 2000;
 const LINE_HEIGHT: u32 = FACTOR * 160;
 
 const FONT_SIZE: f32 = FACTOR as f32 * 80.0;
 
-const _MSHQ_DEFAULT: f32 = 25.5;
-const _SPAC_DEFAULT: f32 = -10.3;
 macro_rules! my_file {
     () => {
-        "kawthar"
+        "noor"
     };
 }
 static TEXT: &str = include_str!(concat!("../texts/", my_file!(), ".txt"));
@@ -55,15 +52,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 &mut hb_font,
                 variations,
             );
-
-            canvas.save(Path::new(
-                &(format!(
-                    "texts/rb_vs_hb__{}_MSHQ:{:.0}_SPAC:{:.0}.png",
-                    my_file!(),
-                    mshq * 10.0,
-                    spac * 10.0
-                )),
-            ))?;
+            if let Err(canvas) = canvas {
+                canvas.save(Path::new(
+                    &(format!(
+                        "images/rb_vs_hb__{}_MSHQ:{:.0}_SPAC:{:.0}.png",
+                        my_file!(),
+                        mshq * 10.0,
+                        spac * 10.0
+                    )),
+                ))?;
+            }
         }
     }
 
@@ -82,7 +80,7 @@ fn write_in_image<const N: usize>(
     rb_font: &mut rb::Face<'_>,
     hb_font: &mut hb::Owned<hb::Font<'_>>,
     variations: [Variation; N],
-) -> RgbaImage {
+) -> Result<(), RgbaImage> {
     for v in variations {
         ab_font.set_variation(&v.tag, v.current_value);
     }
@@ -105,6 +103,18 @@ fn write_in_image<const N: usize>(
 
     let rb_output = rb::shape(rb_font, &[], rb_buffer);
 
+    // HARFBUZZ
+
+    hb_font.set_variations(
+        &variations
+            .iter()
+            .map(|v| hb::Variation::new(&v.tag, v.current_value))
+            .collect::<Vec<_>>(),
+    );
+
+    let hb_buffer = hb::UnicodeBuffer::new().add_str(full_text.trim());
+    let hb_output = hb::shape(hb_font, hb_buffer, &[]);
+
     // to align everything to the right. works around the weird shaping bug
     let line_width = rb_output
         .glyph_positions()
@@ -116,6 +126,27 @@ fn write_in_image<const N: usize>(
     let mut canvas = RgbaImage::from_pixel(img_width, 2 * LINE_HEIGHT + 2 * MARGIN, BKG_COLOR);
 
     let mut caret = 0;
+
+    for ((rbp, rbi), (hbp, hbi)) in rb_output
+        .glyph_positions()
+        .iter()
+        .zip(rb_output.glyph_infos())
+        .zip(
+            hb_output
+                .get_glyph_positions()
+                .iter()
+                .zip(hb_output.get_glyph_infos()),
+        )
+    {
+        if rbi.glyph_id == hbi.codepoint
+            && rbp.x_advance == hbp.x_advance
+            && rbp.y_advance == hbp.y_advance
+            && rbp.x_offset == hbp.x_offset
+            && rbp.y_offset == hbp.y_offset
+        {
+            return Ok(());
+        }
+    }
 
     for (position, info) in rb_output
         .glyph_positions()
@@ -153,18 +184,6 @@ fn write_in_image<const N: usize>(
             }
         });
     }
-
-    // HARFBUZZ
-
-    hb_font.set_variations(
-        &variations
-            .iter()
-            .map(|v| hb::Variation::new(&v.tag, v.current_value))
-            .collect::<Vec<_>>(),
-    );
-
-    let hb_buffer = hb::UnicodeBuffer::new().add_str(full_text.trim());
-    let hb_output = hb::shape(hb_font, hb_buffer, &[]);
 
     let mut caret = 0;
 
@@ -207,5 +226,5 @@ fn write_in_image<const N: usize>(
 
     // THE END
 
-    canvas
+    Err(canvas)
 }
